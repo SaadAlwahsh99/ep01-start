@@ -2,9 +2,13 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const config = require('../src/config');
 const { calculateLateFee } = require('../src/services/feeService');
+const { addDays } = require('../src/utils/dates');
 
 describe('feeService', () => {
-  const loan = (borrowedOn) => ({ borrowedOn });
+  const loan = (borrowedOn) => ({
+    borrowedOn,
+    dueOn: addDays(borrowedOn, config.loanPeriodDays),
+  });
 
   it('charges nothing when returned the day it was borrowed', () => {
     assert.equal(calculateLateFee(loan('2026-10-01'), '2026-10-01'), 0);
@@ -28,5 +32,13 @@ describe('feeService', () => {
     const sooner = calculateLateFee(loan('2026-09-01'), '2026-09-25');
     const later = calculateLateFee(loan('2026-09-01'), '2026-09-28');
     assert.ok(later > sooner);
+  });
+
+  it('uses the configured loan period for the due date', () => {
+    // Borrowed 2026-10-01 with a 14-day period, so due 2026-10-15.
+    const borrowed = { borrowedOn: '2026-10-01', dueOn: '2026-10-15' };
+    assert.equal(config.loanPeriodDays, 14);
+    assert.equal(calculateLateFee(borrowed, '2026-10-15'), 0);
+    assert.equal(calculateLateFee(borrowed, '2026-10-18'), 3 * config.lateFeePerDay);
   });
 });
